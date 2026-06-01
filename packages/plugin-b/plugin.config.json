@@ -1,0 +1,14 @@
+{
+  "name": "plugin-b",
+  "displayName": "代码编辑器",
+  "version": "1.0.0",
+  "devPort": 5174,
+  "backend": "backend.js",
+  "window": {
+    "width": 1000,
+    "height": 700,
+    "minWidth": 600,
+    "minHeight": 400,
+    "title": "代码编辑器"
+  }
+}

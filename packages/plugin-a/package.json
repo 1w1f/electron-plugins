@@ -1,0 +1,27 @@
+{
+  "name": "plugin-a",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rspack dev --config-name frontend",
+    "build": "rspack build",
+    "build:frontend": "rspack build --config-name frontend",
+    "build:backend": "rspack build --config-name backend",
+    "postbuild": "node -e \"import('fs').then(({copyFileSync,existsSync,unlinkSync})=>{const d='../../plugin-dev-output/plugin-a/plugin.config.json';existsSync(d)&&unlinkSync(d);copyFileSync('plugin.config.json',d)})\""
+  },
+  "dependencies": {
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "electron": "^39.2.6",
+    "@rspack/cli": "^1.3.9",
+    "@rspack/core": "^1.3.9",
+    "@rspack/dev-server": "^1.1.2",
+    "@rspack/plugin-react-refresh": "^1.1.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "plugins",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "build": "pnpm --filter core build && pnpm --filter plugin-* run build",
+    "build:plugins": "pnpm --filter plugin-* run build",
+    "build:win": "pnpm build && pnpm --filter core exec -- electron-builder --win",
+    "build:mac": "pnpm build && pnpm --filter core exec -- electron-builder --mac",
+    "build:linux": "pnpm build && pnpm --filter core exec -- electron-builder --linux",
+    "build:unpack": "pnpm build && pnpm --filter core exec -- electron-builder --dir",
+    "start": "pnpm --filter core start"
+  },
+  "devDependencies": {
+    "@electron-toolkit/utils": "^4.0.0"
+  }
+}
