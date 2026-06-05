@@ -10,7 +10,7 @@ export interface PluginConfig {
   name: string
   displayName: string
   version: string
-  devPort: number
+  devPort?: number
   window: PluginWindowConfig
   backend?: string
 }
@@ -21,8 +21,17 @@ export interface PluginMeta {
   name: string
   displayName: string
   version: string
-  devPort: number
+  devPort?: number
   windowConfig: PluginWindowConfig
+}
+
+export interface DevPluginInfo {
+  name: string
+  displayName: string
+  version: string
+  window: PluginWindowConfig
+  configPath: string
+  backendPath: string
 }
 
 export interface PluginInstance {

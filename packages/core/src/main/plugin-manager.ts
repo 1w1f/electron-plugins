@@ -3,7 +3,7 @@ import { join, resolve } from 'path'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
-import type { PluginConfig, PluginMeta, PluginInstance, BackendModule } from './plugin-types'
+import type { PluginConfig, PluginMeta, PluginInstance, BackendModule, DevPluginInfo } from './plugin-types'
 
 const IPC_CHANNELS = {
   LIST: 'pm:list',
@@ -31,7 +31,11 @@ export class PluginManager {
   }
 
   /** Scan the plugins directory and discover all available plugins */
-  discover(): PluginMeta[] {
+  async discover(): Promise<PluginMeta[]> {
+    if (is.dev) {
+      return this.discoverDev()
+    }
+
     this.plugins.clear()
     // const { readdirSync } = require('fs') as typeof import('fs')
 
@@ -64,6 +68,97 @@ export class PluginManager {
     return this.getPlugins()
   }
 
+  /** Dev mode: scan monorepo packages/plugin-* dirs and extract devServer.port from rspack configs */
+  private scanPluginDirs(): Map<string, number> {
+    const result = new Map<string, number>()
+    const monorepoRoot = resolve(__dirname, is.dev ? '../../../../' : '.')
+    const packagesDir = resolve(monorepoRoot, 'packages')
+
+    if (!existsSync(packagesDir)) return result
+
+    const entries = readdirSync(packagesDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('plugin-')) continue
+
+      const configPath = join(packagesDir, entry.name, 'rspack.config.ts')
+      if (!existsSync(configPath)) continue
+
+      try {
+        const content = readFileSync(configPath, 'utf-8')
+        const match = content.match(/devServer:\s*\{\s*port:\s*(\d+)/)
+        if (match) {
+          result.set(entry.name, parseInt(match[1]))
+          console.log(`[PluginManager] Dev plugin found: ${entry.name} on port ${match[1]}`)
+        }
+      } catch (err) {
+        console.warn(`[PluginManager] Failed to read rspack config for ${entry.name}:`, err)
+      }
+    }
+
+    return result
+  }
+
+  /** Dev mode: fetch plugin info from a plugin's dev server */
+  private async fetchPluginInfo(port: number): Promise<DevPluginInfo | null> {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 3000)
+      const response = await fetch(`http://localhost:${port}/__plugin-info`, {
+        signal: controller.signal
+      })
+      clearTimeout(timeout)
+
+      if (!response.ok) {
+        console.warn(`[PluginManager] /__plugin-info on port ${port} returned ${response.status}`)
+        return null
+      }
+
+      return (await response.json()) as DevPluginInfo
+    } catch (err) {
+      console.warn(`[PluginManager] Failed to fetch /__plugin-info on port ${port}:`, err)
+      return null
+    }
+  }
+
+  /** Dev mode: discover plugins via dev servers instead of filesystem */
+  private async discoverDev(): Promise<PluginMeta[]> {
+    this.plugins.clear()
+    const pluginPorts = this.scanPluginDirs()
+
+    for (const [name, port] of pluginPorts) {
+      const info = await this.fetchPluginInfo(port)
+      if (!info) continue
+
+      if (!existsSync(info.configPath)) {
+        console.warn(`[PluginManager] Config not found at ${info.configPath}`)
+        continue
+      }
+
+      try {
+        const config: PluginConfig = JSON.parse(readFileSync(info.configPath, 'utf-8'))
+
+        const meta: PluginMeta = {
+          name: config.name,
+          displayName: config.displayName,
+          version: config.version,
+          devPort: port,
+          windowConfig: config.window
+        }
+        this.plugins.set(meta.name, { meta, status: 'closed' })
+
+        // Load backend with dev-specific path
+        if (config.backend && info.backendPath) {
+          await this.loadBackend(config.name, info.backendPath)
+        }
+      } catch (err) {
+        console.warn(`[PluginManager] Failed to load config for ${name}:`, err)
+      }
+    }
+
+    console.log(`[PluginManager] Discovered ${this.plugins.size} plugin(s) in dev mode`)
+    return this.getPlugins()
+  }
+
   /** Load and validate a plugin.config.json for a given plugin name */
   private loadConfig(name: string): PluginConfig | null {
     const configPath = join(this.pluginsDir, name, 'plugin.config.json')
@@ -73,7 +168,7 @@ export class PluginManager {
       const raw = readFileSync(configPath, 'utf-8')
       const config: PluginConfig = JSON.parse(raw)
 
-      if (!config.name || !config.displayName || !config.devPort) {
+      if (!config.name || !config.displayName) {
         console.warn(
           `[PluginManager] Invalid plugin.config.json in ${name}: missing required fields`
         )
@@ -125,7 +220,7 @@ export class PluginManager {
       this.broadcastStatus(name)
     })
 
-    if (is.dev) {
+    if (is.dev && meta.devPort) {
       const devUrl = `http://localhost:${meta.devPort}`
       try {
         const controller = new AbortController()
@@ -227,11 +322,17 @@ export class PluginManager {
   }
 
   /** Load a plugin's backend script if declared */
-  private async loadBackend(name: string): Promise<void> {
-    const config = this.loadConfig(name)
-    if (!config?.backend) return
+  private async loadBackend(name: string, backendOverride?: string): Promise<void> {
+    let backendPath: string
 
-    const backendPath = join(this.pluginsDir, name, config.backend)
+    if (backendOverride) {
+      backendPath = backendOverride
+    } else {
+      const config = this.loadConfig(name)
+      if (!config?.backend) return
+      backendPath = join(this.pluginsDir, name, config.backend)
+    }
+
     if (!existsSync(backendPath)) {
       console.warn(`[PluginManager] Backend script not found for ${name}: ${backendPath}`)
       return

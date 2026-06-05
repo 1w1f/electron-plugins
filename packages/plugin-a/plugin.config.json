@@ -2,7 +2,6 @@
   "name": "plugin-a",
   "displayName": "数据仪表盘",
   "version": "1.0.0",
-  "devPort": 5175,
   "backend": "backend.js",
   "window": {
     "width": 1000,

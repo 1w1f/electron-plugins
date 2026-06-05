@@ -1,22 +1,6 @@
 ## ADDED Requirements
 
-### Requirement: Scan plugin directory (Production Mode)
-The system SHALL scan a predefined plugin output directory for available plugins by reading their `plugin.config.json` files.
-
-#### Scenario: Discover plugins from directory
-- **WHEN** PluginManager.scan() is called
-- **THEN** it reads all subdirectories under the plugin output directory
-- **THEN** for each subdirectory containing a valid `plugin.config.json`, it parses and registers the plugin metadata
-
-#### Scenario: Skip invalid plugin directories
-- **WHEN** a subdirectory exists but contains no `plugin.config.json` or the file is malformed
-- **THEN** that subdirectory SHALL be silently skipped
-
-#### Scenario: Return plugin list to renderer
-- **WHEN** Host UI sends `pm:list` IPC request
-- **THEN** PluginManager SHALL return all currently discovered PluginMeta objects
-
-### Requirement: Dev mode plugin discovery by scanning monorepo
+### Requirement: Core discovers plugins by scanning monorepo plugin directories
 
 In dev mode, the system SHALL discover available plugins by scanning `packages/plugin-*` directories relative to the monorepo root, rather than reading from `plugin-dev-output/`.
 
@@ -37,23 +21,6 @@ In dev mode, the system SHALL discover available plugins by scanning `packages/p
 #### Scenario: No devServer.port found in rspack.config.ts
 - **WHEN** `rspack.config.ts` exists but no `devServer.port` is found
 - **THEN** the system SHALL log a warning and skip that plugin
-
-### Requirement: Plugin config format
-The system SHALL read plugin metadata from a `plugin.config.json` file in each plugin's output directory (production) or via the dev server endpoint (dev).
-
-#### Scenario: Valid plugin.config.json
-- **WHEN** PluginManager reads a valid `plugin.config.json`
-- **THEN** it extracts `name`, `displayName`, `version`, `window` config, and optionally `devPort`
-- **THEN** the plugin SHALL be registered as available
-
-#### Scenario: Missing required fields
-- **WHEN** `plugin.config.json` is missing required fields (name, displayName)
-- **THEN** the plugin SHALL be skipped with a console warning
-
-#### Scenario: devPort field is optional
-- **WHEN** `plugin.config.json` does not contain `devPort`
-- **THEN** the plugin SHALL still be registered successfully
-- **AND** `PluginConfig` type SHALL make `devPort` optional
 
 ### Requirement: Dev server exposes /__plugin-info endpoint
 
@@ -77,7 +44,7 @@ Each plugin's rspack dev server SHALL expose a `GET /__plugin-info` endpoint tha
 - **WHEN** the plugin is built for production
 - **THEN** there SHALL be no `/__plugin-info` endpoint in the production bundle
 
-### Requirement: Core fetches /__plugin-info to get plugin metadata in dev mode
+### Requirement: Core fetches /__plugin-info to get plugin metadata
 
 In dev mode, `PluginManager.discover()` SHALL fetch each discovered plugin's `/__plugin-info` endpoint to obtain metadata and module paths.
 
@@ -111,26 +78,19 @@ Each plugin SHALL provide a `dev:backend` npm script that compiles the backend m
 - **THEN** rspack SHALL compile the backend entry with `--config-name backend --watch`
 - **AND** output `backend.js` to `plugin-dev-output/<plugin-name>/backend.js`
 
-### Requirement: Build copies plugin.config.json to output directory
+### Requirement: plugin.config.json no longer contains devPort
 
-The `build` script SHALL copy `plugin.config.json` to the plugin output directory so it is available during packaging.
+The `devPort` field SHALL be removed from `plugin.config.json`. The port SHALL only exist in `rspack.config.ts`.
 
-#### Scenario: Build completes with config copy
+#### Scenario: plugin.config.json without devPort
+- **WHEN** `plugin.config.json` is parsed
+- **THEN** the system SHALL NOT require `devPort` to be present
+- **AND** `PluginConfig` type SHALL make `devPort` optional
+
+### Requirement: postbuild script is removed
+
+The `postbuild` script that copies `plugin.config.json` to `plugin-dev-output/` SHALL be removed from each plugin's `package.json`.
+
+#### Scenario: Build completes without postbuild
 - **WHEN** `npm run build` is executed in a plugin directory
-- **THEN** the build SHALL complete and copy `plugin.config.json` to `plugin-dev-output/<plugin-name>/plugin.config.json`
-
-### Requirement: Plugin frontend dev server serves HTML at root
-
-The plugin's rspack dev server SHALL serve the generated `index.html` at the root URL (`/`) so that Electron plugin windows can load the frontend.
-
-#### Scenario: Dev server root returns generated HTML
-- **WHEN** accessing `http://localhost:<port>/` during `rspack dev`
-- **THEN** the dev server SHALL return the generated HTML with correct script references
-
-#### Scenario: JS bundle is accessible from dev server
-- **WHEN** accessing `http://localhost:<port>/assets/main.<hash>.js` during `rspack dev`
-- **THEN** the dev server SHALL return the compiled JavaScript bundle
-
-#### Scenario: HTML scripts reference correct paths
-- **WHEN** the dev server generates `index.html`
-- **THEN** script `src` attributes SHALL use relative paths that resolve correctly on the dev server
+- **THEN** the build SHALL complete without attempting to copy `plugin.config.json`

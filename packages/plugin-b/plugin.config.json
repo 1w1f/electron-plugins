@@ -2,7 +2,6 @@
   "name": "plugin-b",
   "displayName": "代码编辑器",
   "version": "1.0.0",
-  "devPort": 5174,
   "backend": "backend.js",
   "window": {
     "width": 1000,

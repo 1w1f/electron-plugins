@@ -4,6 +4,7 @@ import RefreshPlugin from '@rspack/plugin-react-refresh'
 import { builtinModules } from 'module'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { readFileSync, existsSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -19,9 +20,9 @@ export default defineConfig([
       main: resolve(__dirname, 'src/main.tsx')
     },
     output: {
-      path: resolve(outDir, 'assets'),
-      filename: 'main.[contenthash:8].js',
-      clean: true
+      path: resolve(outDir),
+      filename: 'assets/main.[contenthash:8].js',
+      clean: false
     },
     resolve: {
       extensions: ['.ts', '.tsx', '.js', '.jsx']
@@ -29,7 +30,7 @@ export default defineConfig([
     plugins: [
       new rspack.HtmlRspackPlugin({
         template: resolve(__dirname, 'index.html'),
-        filename: resolve(outDir, 'index.html')
+        filename: 'index.html'
       }),
       isDev && new RefreshPlugin()
     ].filter(Boolean),
@@ -54,7 +55,34 @@ export default defineConfig([
     },
     devServer: {
       port: 5175,
-      hot: true
+      hot: true,
+      setupMiddlewares: (middlewares: any, devServer: any) => {
+        devServer.app.get('/__plugin-info', (_req: any, res: any) => {
+          const configPath = resolve(__dirname, 'plugin.config.json')
+          const backendDir = resolve(__dirname, '../../plugin-dev-output/plugin-a')
+          const backendPath = resolve(backendDir, 'backend.js')
+
+          if (!existsSync(configPath)) {
+            res.status(500).json({ error: 'plugin.config.json not found' })
+            return
+          }
+
+          try {
+            const config = JSON.parse(readFileSync(configPath, 'utf-8'))
+            res.json({
+              name: config.name,
+              displayName: config.displayName,
+              version: config.version,
+              window: config.window,
+              configPath,
+              backendPath: existsSync(backendPath) ? backendPath : null
+            })
+          } catch (err) {
+            res.status(500).json({ error: String(err) })
+          }
+        })
+        return middlewares
+      }
     }
   },
   {

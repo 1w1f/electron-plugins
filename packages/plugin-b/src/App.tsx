@@ -14,8 +14,8 @@ function App(): React.JSX.Element {
 
   return (
     <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
-      <h1>代码编辑器</h1>
-      <p>Plugin-B 已加载</p>
+      <h1>代码编辑器111</h1>
+      <p>Plugin-B 已加载22</p>
       {version && <p>版本: {version}</p>}
       {data && (
         <ul>

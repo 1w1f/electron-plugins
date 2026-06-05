@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "rspack dev --config-name frontend",
-    "build": "rspack build",
+    "dev:backend": "rspack build --config-name backend --watch",
+    "build": "rspack build && node -e \"fs.cpSync('plugin.config.json', '../../plugin-dev-output/plugin-b/plugin.config.json')\"",
     "build:frontend": "rspack build --config-name frontend",
-    "build:backend": "rspack build --config-name backend",
-    "postbuild": "node -e \"import('fs').then(({copyFileSync,existsSync,unlinkSync})=>{const d='../../plugin-dev-output/plugin-b/plugin.config.json';existsSync(d)&&unlinkSync(d);copyFileSync('plugin.config.json',d)})\""
+    "build:backend": "rspack build --config-name backend"
   },
   "dependencies": {
     "react": "^19.2.1",
